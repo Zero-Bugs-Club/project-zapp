@@ -1,10 +1,10 @@
 # Project Zapp
 
-Flutter application for Android and iOS with two primary functions: geo-tagged photo capture and VIT timetable matching.
+Flutter application for Android and iOS that has everything a Student Needs.
 
 ## 1. Overview
 
-The application contains two tabs:
+The application contains two tabs asn:
 
 1. Camera. Captures a photograph, records the device geolocation and timestamp, and stores the record locally on the device. No cloud upload is performed.
 2. Timetable. Content is determined by the authenticated role:
