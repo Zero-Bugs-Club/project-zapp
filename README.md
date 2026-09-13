@@ -13,15 +13,13 @@ The application contains two tabs:
 
 Authentication precedes navigation. It has no tab. The same login screen serves standard users and administrators; the stored role controls the Timetable tab content.
 
-## 2. Module Ownership
+## 2. Modules
 
-| Module | Directory | Owner |
-|---|---|---|
-| GPS camera | `lib/features/gps_camera/` | Developer 1 |
-| Timetable (user and admin views) | `lib/features/timetable/` | Developer 2 |
-| Authentication | `lib/features/auth/` | Developer 3 |
-
-Coordination is the responsibility of the project lead. The lead does not own a feature module.
+| Module | Directory | 
+|---|---|
+| GPS camera | `lib/features/gps_camera/` | 
+| Timetable (user and admin views) | `lib/features/timetable/` |
+| Authentication | `lib/features/auth/` | 
 
 Shared code resides in `lib/core/` (models, API client, constants, theme, VIT slot grid). Modifications to shared code require prior agreement with the project lead.
 
@@ -50,13 +48,5 @@ lib/
     timetable/               Parser, user view, admin free-slot view
     auth/                    Login screen, authentication state
 ```
-
-## 5. Development Workflow
-
-The `main` branch remains in a working state at all times. Each developer works on a dedicated branch and submits pull requests into `main`:
-
-- `feature/gps-camera`
-- `feature/timetable`
-- `feature/auth`
 
 Refer to `CONTRIBUTING.md` for environment setup and build instructions.
