@@ -1,0 +1,11 @@
+name = "project-zapp-auth"
+main = "src/index.js"
+compatibility_date = "2026-10-09"
+
+[vars]
+ALLOWED_ORIGIN = ""
+
+[[d1_databases]]
+binding = "DB"
+database_name = "project-zapp-auth"
+database_id = "PASTE_YOUR_CLOUDFLARE_D1_DATABASE_ID_HERE"

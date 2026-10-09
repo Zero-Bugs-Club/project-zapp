@@ -1,13 +1,9 @@
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/api_client.dart' as api;
 import '../../core/models/user.dart';
 
-/// Auth state owned by the auth feature developer.
-///
-/// `null` means logged out. [AuthController] is the only place that may
-/// change it; the Timetable tab only reads `currentUserProvider` to decide
-/// which view to render.
 class AuthController extends Notifier<AppUser?> {
   @override
   AppUser? build() => null;
@@ -17,21 +13,44 @@ class AuthController extends Notifier<AppUser?> {
     required String password,
     required bool isAdminLogin,
   }) async {
-    state = await api.login(
+    final user = await api.login(
       username: username,
       password: password,
       isAdminLogin: isAdminLogin,
     );
+    state = user;
   }
 
-  void signOut() => state = null;
+  Future<void> signUp({
+    required String name,
+    required String email,
+    required String phoneNumber,
+    required String username,
+    required String password,
+  }) async {
+    await api.signUp(
+      name: name,
+      email: email,
+      phoneNumber: phoneNumber,
+      username: username,
+      password: password,
+    );
+  }
+
+  Future<void> restoreSession() async {
+    state = await api.restoreSession();
+  }
+
+  Future<void> signOut() async {
+    await api.logout();
+    state = null;
+  }
 }
 
 final authProvider = NotifierProvider<AuthController, AppUser?>(
   AuthController.new,
 );
 
-// Convenience selector for role checks in the Timetable tab.
 final currentUserProvider = Provider<AppUser?>(
   (ref) => ref.watch(authProvider),
 );
