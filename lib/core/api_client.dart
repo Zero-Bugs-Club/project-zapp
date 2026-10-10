@@ -16,9 +16,9 @@ Uri _endpoint(String path) {
 }
 
 Map<String, String> get _headers => {
-      'Content-Type': 'application/json',
-      if (_authToken != null) 'Authorization': 'Bearer $_authToken',
-    };
+  'Content-Type': 'application/json',
+  if (_authToken != null) 'Authorization': 'Bearer $_authToken',
+};
 
 String _readError(http.Response response) {
   try {
@@ -35,10 +35,17 @@ String _readError(http.Response response) {
     // The server didn't return a JSON error.
   }
 
+  if (response.statusCode == 429) {
+    return 'Too many requests. Please wait a moment before trying again.';
+  }
+
   return 'Request failed (${response.statusCode}). Please try again.';
 }
 
-Future<AppUser> _parseUserResponse(http.Response response) async {
+Future<AppUser> _parseUserResponse(
+  http.Response response, {
+  bool isRestore = false,
+}) async {
   if (response.statusCode < 200 || response.statusCode >= 300) {
     throw Exception(_readError(response));
   }
@@ -49,18 +56,24 @@ Future<AppUser> _parseUserResponse(http.Response response) async {
     throw Exception('Invalid response from the server.');
   }
 
-  final token = body['token'];
   final user = body['user'];
+  if (user is! Map<String, dynamic>) {
+    throw Exception('The server returned an invalid user response.');
+  }
 
-  if (token is! String || user is! Map<String, dynamic>) {
+  final token = body['token'];
+  if (token is String) {
+    _authToken = token;
+    await _secureStorage.write(key: 'auth_token', value: token);
+  } else if (!isRestore && _authToken == null) {
     throw Exception('The server returned an invalid login response.');
   }
 
   final role = user['role'] == 'ADMIN'
       ? UserRole.admin
       : user['role'] == 'USER'
-          ? UserRole.user
-          : null;
+      ? UserRole.user
+      : null;
 
   if (role == null) {
     throw Exception('The server returned an invalid user role.');
@@ -82,9 +95,6 @@ Future<AppUser> _parseUserResponse(http.Response response) async {
           : 'Your account has been rejected.',
     );
   }
-
-  _authToken = token;
-  await _secureStorage.write(key: 'auth_token', value: token);
 
   return AppUser(
     id: user['id'].toString(),
@@ -110,10 +120,7 @@ Future<AppUser> login({
     final response = await httpClient.post(
       _endpoint('/api/login'),
       headers: const {'Content-Type': 'application/json'},
-      body: jsonEncode({
-        'username': username.trim(),
-        'password': password,
-      }),
+      body: jsonEncode({'username': username.trim(), 'password': password}),
     );
 
     final user = await _parseUserResponse(response);
@@ -125,7 +132,7 @@ Future<AppUser> login({
 
     if (!isAdminLogin && user.isAdmin) {
       await logout();
-      throw Exception('Please select administrator login.');
+      throw Exception('Please select administrator login mode.');
     }
 
     return user;
@@ -166,23 +173,91 @@ Future<void> signUp({
 }
 
 Future<AppUser> restoreSession() async {
-  _authToken = await _secureStorage.read(key: 'auth_token');
+  try {
+    _authToken = await _secureStorage
+        .read(key: 'auth_token')
+        .timeout(const Duration(seconds: 2), onTimeout: () => null);
+  } catch (_) {
+    _authToken = null;
+  }
 
   if (_authToken == null || _authToken!.isEmpty) {
     throw Exception('No saved session.');
   }
 
-  final response = await http.get(
-    _endpoint('/api/me'),
-    headers: _headers,
-  );
+  try {
+    final response = await http.get(_endpoint('/api/me'), headers: _headers);
 
-  return _parseUserResponse(response);
+    if (response.statusCode == 401 || response.statusCode == 403) {
+      await logout();
+      throw Exception('Session expired. Please log in again.');
+    }
+
+    return await _parseUserResponse(response, isRestore: true);
+  } catch (e) {
+    await logout();
+    rethrow;
+  }
 }
 
 Future<void> logout() async {
   _authToken = null;
   await _secureStorage.delete(key: 'auth_token');
+}
+
+Future<List<PendingUser>> getPendingUsers({http.Client? client}) async {
+  if (_authToken == null) {
+    throw Exception('Administrator login required.');
+  }
+
+  final httpClient = client ?? http.Client();
+  try {
+    final response = await httpClient.get(
+      _endpoint('/api/admin/pending'),
+      headers: _headers,
+    );
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception(_readError(response));
+    }
+
+    final body = jsonDecode(response.body);
+    if (body is! Map<String, dynamic> || body['users'] is! List) {
+      throw Exception('Invalid pending users response.');
+    }
+
+    final list = body['users'] as List;
+    return list
+        .map((item) => PendingUser.fromJson(item as Map<String, dynamic>))
+        .toList();
+  } finally {
+    if (client == null) httpClient.close();
+  }
+}
+
+Future<void> reviewUser({
+  required String userId,
+  required String status,
+  http.Client? client,
+}) async {
+  if (_authToken == null) {
+    throw Exception('Administrator login required.');
+  }
+
+  final httpClient = client ?? http.Client();
+  try {
+    final response = await httpClient.post(
+      _endpoint('/api/admin/review'),
+      headers: _headers,
+      body: jsonEncode({'userId': userId, 'status': status}),
+    );
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception(_readError(response));
+    }
+  } finally {
+    if (client == null) httpClient.close();
+  }
 }
 
 Future<void> saveTimetable(
@@ -197,9 +272,7 @@ Future<void> saveTimetable(
   throw UnimplementedError('Timetable API integration is still pending.');
 }
 
-Future<Map<int, List<String>>> getFreeSlots({
-  http.Client? client,
-}) async {
+Future<Map<int, List<String>>> getFreeSlots({http.Client? client}) async {
   if (_authToken == null) {
     throw Exception('Please log in first.');
   }
@@ -212,9 +285,6 @@ Map<int, List<String>> decodeFreeSlots(String body) {
   final decoded = jsonDecode(body) as Map<String, dynamic>;
 
   return decoded.map(
-    (key, value) => MapEntry(
-      int.parse(key),
-      List<String>.from(value as List),
-    ),
+    (key, value) => MapEntry(int.parse(key), List<String>.from(value as List)),
   );
 }

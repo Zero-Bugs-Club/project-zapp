@@ -1,4 +1,3 @@
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/api_client.dart' as api;
@@ -38,7 +37,11 @@ class AuthController extends Notifier<AppUser?> {
   }
 
   Future<void> restoreSession() async {
-    state = await api.restoreSession();
+    try {
+      state = await api.restoreSession();
+    } catch (_) {
+      state = null;
+    }
   }
 
   Future<void> signOut() async {
@@ -54,3 +57,10 @@ final authProvider = NotifierProvider<AuthController, AppUser?>(
 final currentUserProvider = Provider<AppUser?>(
   (ref) => ref.watch(authProvider),
 );
+
+/// Riverpod provider for fetching pending users in administrator view.
+final pendingUsersProvider = FutureProvider.autoDispose<List<PendingUser>>((
+  ref,
+) async {
+  return api.getPendingUsers();
+});
