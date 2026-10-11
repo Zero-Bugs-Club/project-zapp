@@ -22,6 +22,11 @@ jobs:
           channel: 'stable'
           cache: true
 
+      - name: Clean CocoaPods residuals (use pure Swift Package Manager)
+        run: |
+          rm -f ios/Podfile ios/Podfile.lock
+          rm -rf ios/Pods
+
       - name: Install dependencies
         run: flutter pub get
 
@@ -29,17 +34,23 @@ jobs:
         run: |
           python3 -c "
           import glob, os
-          pattern = os.path.expanduser('~/.pub-cache/**/DefaultCamera.swift')
-          files = glob.glob(pattern, recursive=True)
-          for path in files:
-              print(f'Patching {path}')
-              with open(path, 'r') as f:
-                  code = f.read()
-              code = code.replace('AVCaptureSession.wasInterruptedNotification', 'NSNotification.Name(\"AVCaptureSessionWasInterruptedNotification\")')
-              code = code.replace('AVCaptureSession.runtimeErrorNotification', 'NSNotification.Name(\"AVCaptureSessionRuntimeErrorNotification\")')
-              with open(path, 'w') as f:
-                  f.write(code)
-          print(f'Successfully patched {len(files)} files.')
+          patterns = [
+              os.path.expanduser('~/.pub-cache/**/DefaultCamera.swift'),
+              os.path.abspath('ios/**/DefaultCamera.swift'),
+              os.path.abspath('build/**/DefaultCamera.swift')
+          ]
+          count = 0
+          for p in patterns:
+              for path in glob.glob(p, recursive=True):
+                  print(f'Patching {path}')
+                  with open(path, 'r') as f:
+                      code = f.read()
+                  code = code.replace('AVCaptureSession.wasInterruptedNotification', 'NSNotification.Name(\"AVCaptureSessionWasInterruptedNotification\")')
+                  code = code.replace('AVCaptureSession.runtimeErrorNotification', 'NSNotification.Name(\"AVCaptureSessionRuntimeErrorNotification\")')
+                  with open(path, 'w') as f:
+                      f.write(code)
+                  count += 1
+          print(f'Successfully patched {count} files.')
           "
 
       - name: Analyze code
