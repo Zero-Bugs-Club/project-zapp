@@ -262,14 +262,44 @@ Future<void> reviewUser({
 
 Future<void> saveTimetable(
   List<TimetableSlot> slots, {
+  List<Map<String, dynamic>>? courses,
   http.Client? client,
 }) async {
   if (_authToken == null) {
     throw Exception('Please log in first.');
   }
 
-  // Timetable API integration is not implemented in this authentication step.
-  throw UnimplementedError('Timetable API integration is still pending.');
+  final httpClient = client ?? http.Client();
+  try {
+    final payload = <String, dynamic>{
+      'slots': slots
+          .map(
+            (s) => {
+              'dayOfWeek': s.day,
+              'slotCode': s.slotCode,
+              'courseCode': s.course,
+              'startTime': s.startTime,
+              'endTime': s.endTime,
+            },
+          )
+          .toList(),
+    };
+    if (courses != null) {
+      payload['courses'] = courses;
+    }
+
+    final response = await httpClient.post(
+      _endpoint('/api/timetable/upload'),
+      headers: _headers,
+      body: jsonEncode(payload),
+    );
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception(_readError(response));
+    }
+  } finally {
+    if (client == null) httpClient.close();
+  }
 }
 
 Future<Map<int, List<String>>> getFreeSlots({http.Client? client}) async {
@@ -277,8 +307,29 @@ Future<Map<int, List<String>>> getFreeSlots({http.Client? client}) async {
     throw Exception('Please log in first.');
   }
 
-  // Timetable API integration is not implemented in this authentication step.
-  throw UnimplementedError('Timetable API integration is still pending.');
+  final httpClient = client ?? http.Client();
+  try {
+    final response = await httpClient.get(
+      _endpoint('/api/timetable/my'),
+      headers: _headers,
+    );
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception(_readError(response));
+    }
+
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
+    if (data['freeSlots'] is Map) {
+      final freeMap = data['freeSlots'] as Map<String, dynamic>;
+      return freeMap.map(
+        (key, value) =>
+            MapEntry(int.parse(key), List<String>.from(value as List)),
+      );
+    }
+    return {};
+  } finally {
+    if (client == null) httpClient.close();
+  }
 }
 
 Map<int, List<String>> decodeFreeSlots(String body) {
