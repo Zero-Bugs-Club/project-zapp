@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-/// Vivid orange and white theme palette for Project Zapp.
+/// Vivid orange and white theme palette for Project Zapp Authentication & General Branding.
 const Color zappOrange = Color(0xFFE87532);
 const Color zappCream = Color(0xFFFFFAF5);
 const Color zappCharcoal = Color(0xFF29251F);
@@ -8,8 +8,23 @@ const Color zappMuted = Color(0xFF81786F);
 const Color zappBorder = Color(0xFFE8DED4);
 const Color zappOrangeLight = Color(0xFFFFF2E8);
 
+/// Apple Design System tokens inspired by Apple Human Interface Guidelines (design.md).
+const Color kAppleBlue = Color(0xFF0071E3);
+const Color kAppleBlueDark = Color(0xFF0055C6);
+const Color kAppleTextPrimary = Color(0xFF1D1D1F);
+const Color kAppleTextSecondary = Color(0xFF6E6E73);
+const Color kAppleTextTertiary = Color(0xFFAEAEB2);
+const Color kAppleBackground = Color(0xFFFFFFFF);
+const Color kAppleSurface = Color(0xFFF5F5F7);
+const Color kAppleBorder = Color(0xFFD2D2D7);
+const Color kAppleBorderLight = Color(0xFFE5E5EA);
+const Color kAppleSuccess = Color(0xFF34C759);
+const Color kAppleError = Color(0xFFFF3B30);
+
+/// Shared unified theme matching design.md and authentication flows.
 final ThemeData appTheme = ThemeData(
   useMaterial3: true,
+  brightness: Brightness.light,
   scaffoldBackgroundColor: zappCream,
   colorScheme: ColorScheme.fromSeed(
     seedColor: zappOrange,
@@ -18,6 +33,15 @@ final ThemeData appTheme = ThemeData(
     onPrimary: Colors.white,
     onSurface: zappCharcoal,
   ),
+  fontFamily: '-apple-system',
+  fontFamilyFallback: const [
+    'BlinkMacSystemFont',
+    'SF Pro Display',
+    'SF Pro Text',
+    'Segoe UI',
+    'Roboto',
+    'sans-serif',
+  ],
   appBarTheme: const AppBarTheme(
     backgroundColor: zappCream,
     foregroundColor: zappCharcoal,
