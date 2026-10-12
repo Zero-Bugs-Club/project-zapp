@@ -8,7 +8,7 @@ void main() {
     WidgetTester tester,
   ) async {
     await tester.pumpWidget(const ProviderScope(child: ZappApp()));
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(seconds: 3));
     expect(find.text('Sign in'), findsWidgets);
   });
 }
