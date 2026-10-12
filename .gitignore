@@ -57,3 +57,6 @@ node_modules/
 .wrangler/
 
 build/
+# Cloudflare Worker dependencies
+worker-auth/node_modules/
+
