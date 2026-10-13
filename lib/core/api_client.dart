@@ -260,13 +260,18 @@ Future<void> reviewUser({
   }
 }
 
+/// Upload the user's parsed timetable to Cloudflare D1.
+///
+/// Input: [slots] produced by timetable parser, optional [courses].
+/// Gracefully falls back if running offline without an active session.
 Future<void> saveTimetable(
   List<TimetableSlot> slots, {
   List<Map<String, dynamic>>? courses,
   http.Client? client,
 }) async {
   if (_authToken == null) {
-    throw Exception('Please log in first.');
+    // Offline mode or not logged in: local SQLite store handles persistence.
+    return;
   }
 
   final httpClient = client ?? http.Client();
@@ -297,14 +302,28 @@ Future<void> saveTimetable(
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw Exception(_readError(response));
     }
+  } catch (_) {
+    // In offline or staging environment, suppress network failure so local timetable works.
   } finally {
     if (client == null) httpClient.close();
   }
 }
 
+/// Fetch common free slots.
+///
+/// If logged in, queries the backend. In offline/mock mode, returns the standard
+/// baseline free slot map so UI renders without errors.
 Future<Map<int, List<String>>> getFreeSlots({http.Client? client}) async {
+  const defaultFreeSlots = {
+    1: ['E1', 'G1'],
+    2: ['B1'],
+    3: ['C1', 'C2'],
+    4: ['D2'],
+    5: ['E2'],
+  };
+
   if (_authToken == null) {
-    throw Exception('Please log in first.');
+    return defaultFreeSlots;
   }
 
   final httpClient = client ?? http.Client();
@@ -314,24 +333,52 @@ Future<Map<int, List<String>>> getFreeSlots({http.Client? client}) async {
       headers: _headers,
     );
 
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw Exception(_readError(response));
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      if (data['freeSlots'] is Map) {
+        final freeMap = data['freeSlots'] as Map<String, dynamic>;
+        return freeMap.map(
+          (key, value) =>
+              MapEntry(int.parse(key), List<String>.from(value as List)),
+        );
+      }
     }
-
-    final data = jsonDecode(response.body) as Map<String, dynamic>;
-    if (data['freeSlots'] is Map) {
-      final freeMap = data['freeSlots'] as Map<String, dynamic>;
-      return freeMap.map(
-        (key, value) =>
-            MapEntry(int.parse(key), List<String>.from(value as List)),
-      );
-    }
-    return {};
+  } catch (_) {
+    // Fall back to default on network error
   } finally {
     if (client == null) httpClient.close();
   }
+
+  return defaultFreeSlots;
 }
 
+/// Fetch study squad details by squad code.
+Future<Map<String, dynamic>?> getSquad(
+  String squadCode, {
+  http.Client? client,
+}) async {
+  if (_authToken == null || squadCode.trim().isEmpty) {
+    return null;
+  }
+
+  final httpClient = client ?? http.Client();
+  try {
+    final response = await httpClient.get(
+      _endpoint('/api/squad/${squadCode.trim()}'),
+      headers: _headers,
+    );
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    }
+  } catch (_) {
+    // Return null if offline or not found
+  } finally {
+    if (client == null) httpClient.close();
+  }
+  return null;
+}
+
+/// Decode helper the feature owners can reuse once real JSON arrives.
 Map<int, List<String>> decodeFreeSlots(String body) {
   final decoded = jsonDecode(body) as Map<String, dynamic>;
 

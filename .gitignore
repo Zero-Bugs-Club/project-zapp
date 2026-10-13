@@ -47,6 +47,8 @@ app.*.map.json
 
 # Widget Preview related
 .widget_preview/
+
+# Environment and secrets
 .env
 .env.*
 !.env.example
@@ -54,8 +56,10 @@ app.*.map.json
 .dev.vars
 .dev.vars.*
 
+# Dependencies and tool caches
 node_modules/
 .wrangler/
 
 build/
 tools/
+

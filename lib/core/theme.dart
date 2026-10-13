@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+<<<<<<< HEAD
 /// Vivid orange and white theme palette for Project Zapp Authentication & General Branding.
 const Color zappOrange = Color(0xFFE87532);
 const Color zappCream = Color(0xFFFFFAF5);
