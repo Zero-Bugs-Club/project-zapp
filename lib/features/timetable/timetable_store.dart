@@ -46,15 +46,11 @@ class TimetableStore implements TimetableRepository {
   @override
   Future<List<TimetableEntry>> load(String ownerId) async {
     final db = await _database();
-    var rows = await db.query(
+    final rows = await db.query(
       'timetables',
       where: 'owner_id = ?',
       whereArgs: [ownerId],
     );
-    if (rows.isEmpty) {
-      // Fallback: if no timetable for this specific ownerId, load the existing local timetable
-      rows = await db.query('timetables', limit: 1);
-    }
     if (rows.isEmpty) return [];
     final snapshot =
         jsonDecode(rows.first['snapshot'] as String) as Map<String, dynamic>;

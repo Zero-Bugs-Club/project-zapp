@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../core/api_client.dart' as api;
 import '../../core/theme.dart';
 import 'group_manage_screen.dart';
 import 'slot_pattern.dart';
@@ -53,6 +54,19 @@ class SquadMember {
     required this.avatarText,
     required this.busySlots,
   });
+
+  factory SquadMember.fromJson(Map<String, dynamic> json) {
+    final nameStr = json['name']?.toString() ?? 'Member';
+    return SquadMember(
+      id: json['id']?.toString() ?? '',
+      name: nameStr,
+      initial: nameStr.isNotEmpty ? nameStr.substring(0, 1).toUpperCase() : 'M',
+      branch: json['branch']?.toString() ?? 'ENG',
+      avatarBg: const Color(0xFFE0F2FE),
+      avatarText: const Color(0xFF0369A1),
+      busySlots: (json['busySlots'] as List?)?.map((e) => e.toString()).toList() ?? [],
+    );
+  }
 }
 
 // ── Widget ───────────────────────────────────────────────────────────────────
@@ -64,11 +78,15 @@ class SquadMember {
 class TimetableScheduleView extends StatefulWidget {
   final List<TimetableEntry> entries;
   final VoidCallback? onReimport;
+  final String? initialSquadCode;
+  final List<SquadMember>? initialSquadMembers;
 
   const TimetableScheduleView({
     super.key,
     required this.entries,
     this.onReimport,
+    this.initialSquadCode,
+    this.initialSquadMembers,
   });
 
   @override
@@ -82,8 +100,9 @@ class _TimetableScheduleViewState extends State<TimetableScheduleView>
   late List<DateTime> _week;
   final ScrollController _comparisonScroll = ScrollController();
 
-  // Squad members with mock schedules
-  late final List<SquadMember> _squadMembers;
+  late String _squadCode;
+  late List<SquadMember> _squadMembers;
+  bool _isDemoSquad = false;
 
   @override
   void initState() {
@@ -97,10 +116,17 @@ class _TimetableScheduleViewState extends State<TimetableScheduleView>
       _selected = now;
     }
     _buildWeek();
-    _initSquad();
+    _squadCode = widget.initialSquadCode ?? 'K8M2-9PL4';
+    if (widget.initialSquadMembers != null) {
+      _squadMembers = List.from(widget.initialSquadMembers!);
+      _isDemoSquad = false;
+    } else {
+      _initDemoSquad();
+      _isDemoSquad = true;
+    }
   }
 
-  void _initSquad() {
+  void _initDemoSquad() {
     _squadMembers = const [
       SquadMember(
         id: 'arav',
@@ -148,6 +174,98 @@ class _TimetableScheduleViewState extends State<TimetableScheduleView>
         busySlots: ['A1', 'F1', 'TB1', 'B2', 'E2', 'C1', 'TA1'],
       ),
     ];
+  }
+
+  Future<void> _joinSquad(String code) async {
+    final clean = code.trim().toUpperCase();
+    if (clean.isEmpty) return;
+    setState(() {
+      _squadCode = clean;
+    });
+    try {
+      final res = await api.getSquad(clean);
+      if (res != null && res['members'] is List) {
+        final membersList = (res['members'] as List)
+            .map((m) => SquadMember.fromJson(m as Map<String, dynamic>))
+            .toList();
+        setState(() {
+          _squadMembers = membersList;
+          _isDemoSquad = false;
+        });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Connected to squad $clean (${membersList.length} members)'),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+        return;
+      }
+    } catch (_) {}
+    setState(() {
+      _isDemoSquad = false;
+      _squadMembers = [];
+    });
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Squad $clean active. Share code with peers to sync timetables.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  void _showJoinSquadDialog() {
+    final controller = TextEditingController(text: _squadCode);
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: const Text('Enter Study Squad Code', style: TextStyle(fontWeight: FontWeight.w700)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Enter a shared squad code to connect with peer schedules from the backend.',
+              style: TextStyle(fontSize: 13, color: kAppleTextSecondary),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: controller,
+              textCapitalization: TextCapitalization.characters,
+              decoration: InputDecoration(
+                hintText: 'e.g. K8M2-9PL4',
+                prefixIcon: const Icon(Icons.group_rounded, color: kAppleBlue),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel', style: TextStyle(color: kAppleTextSecondary)),
+          ),
+          FilledButton(
+            onPressed: () {
+              final code = controller.text.trim();
+              Navigator.pop(ctx);
+              if (code.isNotEmpty) {
+                _joinSquad(code);
+              }
+            },
+            style: FilledButton.styleFrom(
+              backgroundColor: kAppleBlue,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            child: const Text('Connect'),
+          ),
+        ],
+      ),
+    );
   }
 
   void _buildWeek() {
@@ -705,16 +823,16 @@ class _TimetableScheduleViewState extends State<TimetableScheduleView>
             ),
             child: Row(
               children: [
-                const Expanded(
+                Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Row(
                         children: [
-                          Icon(Icons.key_rounded, size: 13, color: kAppleBlue),
-                          SizedBox(width: 5),
-                          Text(
+                          const Icon(Icons.key_rounded, size: 13, color: kAppleBlue),
+                          const SizedBox(width: 5),
+                          const Text(
                             'SQUAD CODE',
                             style: TextStyle(
                               fontSize: 10,
@@ -723,12 +841,30 @@ class _TimetableScheduleViewState extends State<TimetableScheduleView>
                               letterSpacing: 0.8,
                             ),
                           ),
+                          if (_isDemoSquad) ...[
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                              decoration: BoxDecoration(
+                                color: Colors.amber.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: const Text(
+                                'SAMPLE',
+                                style: TextStyle(
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.orange,
+                                ),
+                              ),
+                            ),
+                          ],
                         ],
                       ),
-                      SizedBox(height: 3),
+                      const SizedBox(height: 3),
                       Text(
-                        'K8M2-9PL4',
-                        style: TextStyle(
+                        _squadCode,
+                        style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w800,
                           color: kAppleTextPrimary,
@@ -738,39 +874,71 @@ class _TimetableScheduleViewState extends State<TimetableScheduleView>
                     ],
                   ),
                 ),
-                InkWell(
-                  borderRadius: BorderRadius.circular(999),
-                  onTap: () {
-                    Clipboard.setData(const ClipboardData(text: 'K8M2-9PL4'));
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Squad Code K8M2-9PL4 copied!'),
-                        behavior: SnackBarBehavior.floating,
-                      ),
-                    );
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-                    decoration: BoxDecoration(
-                      color: kAppleBlue.withValues(alpha: 0.12),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 4,
+                  children: [
+                    InkWell(
                       borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.copy_rounded, size: 13, color: kAppleBlue),
-                        SizedBox(width: 5),
-                        Text(
-                          'Copy',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            color: kAppleBlue,
+                      onTap: () {
+                        Clipboard.setData(ClipboardData(text: _squadCode));
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Squad Code $_squadCode copied!'),
+                            behavior: SnackBarBehavior.floating,
                           ),
+                        );
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                        decoration: BoxDecoration(
+                          color: kAppleBlue.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(999),
                         ),
-                      ],
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.copy_rounded, size: 13, color: kAppleBlue),
+                            SizedBox(width: 4),
+                            Text(
+                              'Copy',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: kAppleBlue,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
-                  ),
+                    InkWell(
+                      borderRadius: BorderRadius.circular(999),
+                      onTap: _showJoinSquadDialog,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                        decoration: BoxDecoration(
+                          color: kAppleBlue.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.swap_horiz_rounded, size: 14, color: kAppleBlue),
+                            SizedBox(width: 4),
+                            Text(
+                              'Switch',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: kAppleBlue,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -788,6 +956,31 @@ class _TimetableScheduleViewState extends State<TimetableScheduleView>
                 for (final m in _squadMembers) ...[
                   _buildAvatarPill(m.name, m.initial, m.avatarText, m.avatarBg),
                   const SizedBox(width: 8),
+                ],
+                if (_squadMembers.isEmpty) ...[
+                  InkWell(
+                    onTap: _showJoinSquadDialog,
+                    borderRadius: BorderRadius.circular(999),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: kAppleSurface,
+                        border: Border.all(color: kAppleBorder),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.add_rounded, size: 14, color: kAppleBlue),
+                          SizedBox(width: 4),
+                          Text(
+                            'Invite peers',
+                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: kAppleBlue),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                 ],
               ],
             ),
@@ -888,9 +1081,9 @@ class _TimetableScheduleViewState extends State<TimetableScheduleView>
                       ),
                     ),
                     const SizedBox(height: 2),
-                    const Text(
-                      'All 11 slots • 6 squad members',
-                      style: TextStyle(color: kAppleTextSecondary, fontSize: 13),
+                    Text(
+                      'All ${slots.length} slots • ${_squadMembers.length + 1} members${_isDemoSquad ? ' (Sample Overlap)' : ''}',
+                      style: const TextStyle(color: kAppleTextSecondary, fontSize: 13),
                     ),
                   ],
                 ),
