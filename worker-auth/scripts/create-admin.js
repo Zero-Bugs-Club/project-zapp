@@ -74,7 +74,7 @@ console.log(`\nBootstrapping admin '${username}' into D1 (${isRemote ? "remote" 
 try {
   const targetFlag = isRemote ? "--remote" : "--local";
   // Escape quotes safely for wrangler execution
-  const cmd = `npx wrangler d1 execute project-zapp-auth ${targetFlag} --command "${sql.replace(/"/g, '\\"')}"`;
+  const cmd = `npx wrangler d1 execute zapp ${targetFlag} --command "${sql.replace(/"/g, '\\"')}"`;
   const output = execSync(cmd, { encoding: "utf-8" });
   console.log("Success! Administrator account configured in D1.");
   console.log(`Username: ${username}`);

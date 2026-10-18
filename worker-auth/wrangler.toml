@@ -5,8 +5,9 @@ compatibility_date = "2026-10-09"
 
 [[d1_databases]]
 binding = "DB"
-database_name = "project-zapp-auth"
-database_id = "d1c04249-e49b-41b0-976b-61fc0b407b75"
+database_name = "zapp"
+database_id = "efd2197f-3c58-4ec6-bd26-bd0308562666"
 
 [vars]
-ALLOWED_ORIGIN = "http://localhost:5000"
+ALLOWED_ORIGIN = "*"
+
