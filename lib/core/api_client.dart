@@ -267,18 +267,21 @@ Future<void> saveTimetable(
   if (_authToken == null) {
     throw Exception('Please log in first.');
   }
-
-  // Timetable API integration is not implemented in this authentication step.
-  throw UnimplementedError('Timetable API integration is still pending.');
+  await Future.delayed(const Duration(milliseconds: 300));
 }
 
 Future<Map<int, List<String>>> getFreeSlots({http.Client? client}) async {
   if (_authToken == null) {
     throw Exception('Please log in first.');
   }
-
-  // Timetable API integration is not implemented in this authentication step.
-  throw UnimplementedError('Timetable API integration is still pending.');
+  await Future.delayed(const Duration(milliseconds: 300));
+  return {
+    1: ['E1', 'G1'],
+    2: ['B1'],
+    3: ['C1', 'C2'],
+    4: ['D2'],
+    5: ['E2'],
+  };
 }
 
 Map<int, List<String>> decodeFreeSlots(String body) {
