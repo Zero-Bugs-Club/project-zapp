@@ -1,0 +1,13 @@
+
+name = "project-zapp-auth"
+main = "src/index.js"
+compatibility_date = "2026-10-09"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "zapp"
+database_id = "efd2197f-3c58-4ec6-bd26-bd0308562666"
+
+[vars]
+ALLOWED_ORIGIN = "*"
+

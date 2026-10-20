@@ -1,75 +1,280 @@
 import 'dart:convert';
 
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 
+import 'constants.dart';
 import 'models/timetable_slot.dart';
 import 'models/user.dart';
 
-/// HTTP layer for the Cloudflare Workers + D1 backend.
-///
-/// All functions are stubs returning fake data. The auth/timetable owners
-/// replace the bodies with real Worker calls, keeping these signatures.
-///
-/// Expected Worker endpoints (to be implemented server-side):
-///   POST `/api/login`      -> `{ "token": "<jwt>", "role": "user|admin", "userId": "..." }`
-///   POST `/api/timetable`  -> saves parsed slots, requires `"Authorization: Bearer <jwt>"`
-///   GET  `/api/free-slots` -> `{ "1": ["A1", ...], ... }` keyed by weekday, admin only
+const FlutterSecureStorage _secureStorage = FlutterSecureStorage();
 
-// In-memory stand-in for the JWT issued by the Worker. Persist securely
-// (e.g. flutter_secure_storage) once real auth is wired up.
 String? _authToken;
 
-/// Log in a regular user or an admin.
-///
-/// Input: [username], [password], [isAdminLogin] (which login form was used).
-/// Output: the logged-in [AppUser] with its role. Throws on bad credentials.
-/// TODO(auth): POST to /api/login with a JSON body, verify the JWT + role
-/// from D1 via the Worker (bcrypt/scrypt check server-side), store the token.
+Uri _endpoint(String path) {
+  return Uri.parse('$apiBaseUrl$path');
+}
+
+Map<String, String> get _headers => {
+  'Content-Type': 'application/json',
+  if (_authToken != null) 'Authorization': 'Bearer $_authToken',
+};
+
+String _readError(http.Response response) {
+  try {
+    final body = jsonDecode(response.body);
+
+    if (body is Map<String, dynamic> && body['error'] is String) {
+      return body['error'] as String;
+    }
+
+    if (body is Map<String, dynamic> && body['message'] is String) {
+      return body['message'] as String;
+    }
+  } catch (_) {
+    // The server didn't return a JSON error.
+  }
+
+  if (response.statusCode == 429) {
+    return 'Too many requests. Please wait a moment before trying again.';
+  }
+
+  return 'Request failed (${response.statusCode}). Please try again.';
+}
+
+Future<AppUser> _parseUserResponse(
+  http.Response response, {
+  bool isRestore = false,
+}) async {
+  if (response.statusCode < 200 || response.statusCode >= 300) {
+    throw Exception(_readError(response));
+  }
+
+  final body = jsonDecode(response.body);
+
+  if (body is! Map<String, dynamic>) {
+    throw Exception('Invalid response from the server.');
+  }
+
+  final user = body['user'];
+  if (user is! Map<String, dynamic>) {
+    throw Exception('The server returned an invalid user response.');
+  }
+
+  final token = body['token'];
+  if (token is String) {
+    _authToken = token;
+    await _secureStorage.write(key: 'auth_token', value: token);
+  } else if (!isRestore && _authToken == null) {
+    throw Exception('The server returned an invalid login response.');
+  }
+
+  final role = user['role'] == 'ADMIN'
+      ? UserRole.admin
+      : user['role'] == 'USER'
+      ? UserRole.user
+      : null;
+
+  if (role == null) {
+    throw Exception('The server returned an invalid user role.');
+  }
+
+  final statusValue = user['status'] ?? 'APPROVED';
+
+  final status = switch (statusValue) {
+    'PENDING' => AccountStatus.pending,
+    'REJECTED' => AccountStatus.rejected,
+    'APPROVED' => AccountStatus.approved,
+    _ => throw Exception('The server returned an invalid account status.'),
+  };
+
+  if (status != AccountStatus.approved) {
+    throw Exception(
+      status == AccountStatus.pending
+          ? 'Your account is awaiting administrator approval.'
+          : 'Your account has been rejected.',
+    );
+  }
+
+  return AppUser(
+    id: user['id'].toString(),
+    username: user['username'].toString(),
+    role: role,
+    status: status,
+  );
+}
+
 Future<AppUser> login({
   required String username,
   required String password,
   required bool isAdminLogin,
   http.Client? client,
 }) async {
-  client ??= http.Client();
-  // Stub: accept anything non-empty so UI work can proceed offline.
-  await Future.delayed(const Duration(milliseconds: 300));
-  if (username.isEmpty || password.isEmpty) {
+  final httpClient = client ?? http.Client();
+
+  if (username.trim().isEmpty || password.isEmpty) {
     throw Exception('Enter a username and password.');
   }
-  _authToken = 'fake-jwt-for-dev';
-  return AppUser(
-    id: isAdminLogin ? 'admin-1' : 'user-1',
-    username: username,
-    role: isAdminLogin ? UserRole.admin : UserRole.user,
-  );
+
+  try {
+    final response = await httpClient.post(
+      _endpoint('/api/login'),
+      headers: const {'Content-Type': 'application/json'},
+      body: jsonEncode({'username': username.trim(), 'password': password}),
+    );
+
+    final user = await _parseUserResponse(response);
+
+    if (isAdminLogin && !user.isAdmin) {
+      await logout();
+      throw Exception('These credentials do not belong to an administrator.');
+    }
+
+    if (!isAdminLogin && user.isAdmin) {
+      await logout();
+      throw Exception('Please select administrator login mode.');
+    }
+
+    return user;
+  } finally {
+    if (client == null) httpClient.close();
+  }
 }
 
-/// Upload the user's parsed timetable.
-///
-/// Input: the [slots] produced by the timetable parser.
-/// TODO(timetable): POST JSON to /api/timetable with the Bearer token.
+Future<void> signUp({
+  required String name,
+  required String email,
+  required String phoneNumber,
+  required String username,
+  required String password,
+  http.Client? client,
+}) async {
+  final httpClient = client ?? http.Client();
+
+  try {
+    final response = await httpClient.post(
+      _endpoint('/api/signup'),
+      headers: const {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'name': name.trim(),
+        'email': email.trim().toLowerCase(),
+        'phoneNumber': phoneNumber.trim(),
+        'username': username.trim(),
+        'password': password,
+      }),
+    );
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception(_readError(response));
+    }
+  } finally {
+    if (client == null) httpClient.close();
+  }
+}
+
+Future<AppUser> restoreSession() async {
+  try {
+    _authToken = await _secureStorage
+        .read(key: 'auth_token')
+        .timeout(const Duration(seconds: 2), onTimeout: () => null);
+  } catch (_) {
+    _authToken = null;
+  }
+
+  if (_authToken == null || _authToken!.isEmpty) {
+    throw Exception('No saved session.');
+  }
+
+  try {
+    final response = await http.get(_endpoint('/api/me'), headers: _headers);
+
+    if (response.statusCode == 401 || response.statusCode == 403) {
+      await logout();
+      throw Exception('Session expired. Please log in again.');
+    }
+
+    return await _parseUserResponse(response, isRestore: true);
+  } catch (e) {
+    await logout();
+    rethrow;
+  }
+}
+
+Future<void> logout() async {
+  _authToken = null;
+  await _secureStorage.delete(key: 'auth_token');
+}
+
+Future<List<PendingUser>> getPendingUsers({http.Client? client}) async {
+  if (_authToken == null) {
+    throw Exception('Administrator login required.');
+  }
+
+  final httpClient = client ?? http.Client();
+  try {
+    final response = await httpClient.get(
+      _endpoint('/api/admin/pending'),
+      headers: _headers,
+    );
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception(_readError(response));
+    }
+
+    final body = jsonDecode(response.body);
+    if (body is! Map<String, dynamic> || body['users'] is! List) {
+      throw Exception('Invalid pending users response.');
+    }
+
+    final list = body['users'] as List;
+    return list
+        .map((item) => PendingUser.fromJson(item as Map<String, dynamic>))
+        .toList();
+  } finally {
+    if (client == null) httpClient.close();
+  }
+}
+
+Future<void> reviewUser({
+  required String userId,
+  required String status,
+  http.Client? client,
+}) async {
+  if (_authToken == null) {
+    throw Exception('Administrator login required.');
+  }
+
+  final httpClient = client ?? http.Client();
+  try {
+    final response = await httpClient.post(
+      _endpoint('/api/admin/review'),
+      headers: _headers,
+      body: jsonEncode({'userId': userId, 'status': status}),
+    );
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception(_readError(response));
+    }
+  } finally {
+    if (client == null) httpClient.close();
+  }
+}
+
 Future<void> saveTimetable(
   List<TimetableSlot> slots, {
   http.Client? client,
 }) async {
-  client ??= http.Client();
-  // Stub: pretend the upload succeeded.
+  if (_authToken == null) {
+    throw Exception('Please log in first.');
+  }
   await Future.delayed(const Duration(milliseconds: 300));
-  assert(_authToken != null, 'Call login() before saveTimetable().');
 }
 
-/// Fetch common free slots for the admin grid.
-///
-/// Output: map of weekday (1–7) to the slot codes where every user is free,
-/// computed server-side by aggregating all users' parsed timetables.
-/// TODO(timetable): GET /api/free-slots with the admin Bearer token and
-/// decode the JSON into this map.
 Future<Map<int, List<String>>> getFreeSlots({http.Client? client}) async {
-  client ??= http.Client();
+  if (_authToken == null) {
+    throw Exception('Please log in first.');
+  }
   await Future.delayed(const Duration(milliseconds: 300));
-  assert(_authToken != null, 'Call login() before getFreeSlots().');
-  // Stub data so the admin view renders before the backend exists.
   return {
     1: ['E1', 'G1'],
     2: ['B1'],
@@ -79,10 +284,10 @@ Future<Map<int, List<String>>> getFreeSlots({http.Client? client}) async {
   };
 }
 
-/// Decode helper the feature owners can reuse once real JSON arrives.
 Map<int, List<String>> decodeFreeSlots(String body) {
-  final Map<String, dynamic> json = jsonDecode(body) as Map<String, dynamic>;
-  return json.map(
-    (k, v) => MapEntry(int.parse(k), List<String>.from(v as List)),
+  final decoded = jsonDecode(body) as Map<String, dynamic>;
+
+  return decoded.map(
+    (key, value) => MapEntry(int.parse(key), List<String>.from(value as List)),
   );
 }
