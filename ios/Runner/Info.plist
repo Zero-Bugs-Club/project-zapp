@@ -66,5 +66,13 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSCameraUsageDescription</key>
+	<string>Project Zapp requires camera access to capture timetable photos and scan QR codes.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Project Zapp requires microphone access for audio recording.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Project Zapp requires location access to show nearby campus venues and navigation.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Project Zapp requires location access to support campus venue navigation.</string>
 </dict>
 </plist>
