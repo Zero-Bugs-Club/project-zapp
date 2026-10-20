@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../core/theme.dart';
 import 'auth_provider.dart';
 
 class SignupScreen extends ConsumerStatefulWidget {
@@ -99,15 +98,20 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
     return null;
   }
 
-  Future<void> _submit() async {
+  String? _validateConfirmPassword(String? value) {
+    if (value == null || value.isEmpty) {
+      return 'Confirm your password';
+    }
+    if (value != _passwordController.text) {
+      return 'Passwords do not match';
+    }
+    return null;
+  }
+
+  Future<void> _handleSignup() async {
     FocusScope.of(context).unfocus();
 
-    if (!_formKey.currentState!.validate()) return;
-
-    if (_passwordController.text != _confirmPasswordController.text) {
-      setState(() {
-        _errorMessage = 'Passwords do not match.';
-      });
+    if (!_formKey.currentState!.validate()) {
       return;
     }
 
@@ -121,196 +125,63 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
           .read(authProvider.notifier)
           .signUp(
             name: _nameController.text.trim(),
-            email: _emailController.text.trim().toLowerCase(),
+            email: _emailController.text.trim(),
             phoneNumber: _phoneController.text.trim(),
             username: _usernameController.text.trim(),
             password: _passwordController.text,
           );
 
-      if (!mounted) return;
-
-      setState(() {
-        _isLoading = false;
-        _submittedSuccess = true;
-      });
+      if (mounted) {
+        setState(() {
+          _submittedSuccess = true;
+        });
+      }
     } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _isLoading = false;
-        _errorMessage = e.toString().replaceFirst('Exception: ', '');
-      });
+      if (mounted) {
+        setState(() {
+          _errorMessage = e.toString().replaceFirst('Exception: ', '');
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
-  }
-
-  InputDecoration _decoration({
-    required String label,
-    required IconData icon,
-    Widget? suffixIcon,
-    String? hint,
-  }) {
-    return InputDecoration(
-      labelText: label,
-      hintText: hint,
-      prefixIcon: Icon(icon, color: zappMuted),
-      suffixIcon: suffixIcon,
-      filled: true,
-      fillColor: Colors.white,
-      labelStyle: const TextStyle(color: zappMuted),
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
-        borderSide: const BorderSide(color: zappBorder),
-      ),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
-        borderSide: const BorderSide(color: zappBorder),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
-        borderSide: const BorderSide(color: zappOrange, width: 1.8),
-      ),
-    );
-  }
-
-  Widget _field({
-    required String label,
-    required IconData icon,
-    required TextEditingController controller,
-    required String? Function(String?) validator,
-    TextInputType? keyboardType,
-    bool obscureText = false,
-    Widget? suffixIcon,
-    String? hint,
-    TextCapitalization textCapitalization = TextCapitalization.none,
-  }) {
-    return TextFormField(
-      controller: controller,
-      validator: validator,
-      keyboardType: keyboardType,
-      obscureText: obscureText,
-      textCapitalization: textCapitalization,
-      autocorrect: false,
-      enableSuggestions: !obscureText,
-      decoration: _decoration(
-        label: label,
-        icon: icon,
-        suffixIcon: suffixIcon,
-        hint: hint,
-      ),
-    );
   }
 
   Widget _buildSuccessView() {
     return Scaffold(
-      backgroundColor: zappCream,
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 480),
-              child: Card(
-                elevation: 0,
-                color: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(24),
-                  side: const BorderSide(color: zappBorder),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(32),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        height: 76,
-                        width: 76,
-                        decoration: BoxDecoration(
-                          color: zappOrangeLight,
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(
-                          Icons.hourglass_top_rounded,
-                          color: zappOrange,
-                          size: 42,
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-                      const Text(
-                        'Account Pending Approval',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.w800,
-                          color: zappCharcoal,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        'Registration submitted for @${_usernameController.text.trim()}.\nYour account is now awaiting administrator review.',
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          fontSize: 15,
-                          height: 1.5,
-                          color: zappMuted,
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: zappCream,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: zappBorder),
-                        ),
-                        child: const Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Icon(
-                              Icons.info_outline_rounded,
-                              color: zappOrange,
-                              size: 20,
-                            ),
-                            SizedBox(width: 12),
-                            Expanded(
-                              child: Text(
-                                'Once an administrator approves your account, you will be able to log in to Project Zapp with your chosen password.',
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  height: 1.4,
-                                  color: zappCharcoal,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 28),
-                      SizedBox(
-                        width: double.infinity,
-                        height: 52,
-                        child: FilledButton(
-                          onPressed: () => Navigator.of(context).pop(),
-                          style: FilledButton.styleFrom(
-                            backgroundColor: zappOrange,
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(14),
-                            ),
-                          ),
-                          child: const Text(
-                            'Back to Sign In',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+      appBar: AppBar(title: const Text('Registration Submitted')),
+      body: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Icon(
+              Icons.check_circle_outline,
+              size: 64,
+              color: Colors.green,
             ),
-          ),
+            const SizedBox(height: 24),
+            Text(
+              'Registration Pending Approval',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.headlineSmall,
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Your account has been created and is awaiting administrator approval. Once approved, you will be able to sign in.',
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 32),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Back to Sign in'),
+            ),
+          ],
         ),
       ),
     );
@@ -323,282 +194,100 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
     }
 
     return Scaffold(
-      backgroundColor: zappCream,
       appBar: AppBar(title: const Text('Create Account')),
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 480),
-              child: Card(
-                elevation: 0,
-                color: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(24),
-                  side: const BorderSide(color: zappBorder),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(28),
-                  child: Form(
-                    key: _formKey,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Row(
-                          children: [
-                            Container(
-                              height: 50,
-                              width: 50,
-                              decoration: BoxDecoration(
-                                color: zappOrangeLight,
-                                borderRadius: BorderRadius.circular(16),
-                              ),
-                              child: const Icon(
-                                Icons.person_add_alt_1_rounded,
-                                size: 28,
-                                color: zappOrange,
-                              ),
-                            ),
-                            const SizedBox(width: 14),
-                            const Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Join Project Zapp',
-                                    style: TextStyle(
-                                      fontSize: 22,
-                                      fontWeight: FontWeight.w800,
-                                      color: zappCharcoal,
-                                    ),
-                                  ),
-                                  Text(
-                                    'Create your student account to get started.',
-                                    style: TextStyle(
-                                      color: zappMuted,
-                                      fontSize: 13,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 24),
-                        _field(
-                          label: 'Full name',
-                          icon: Icons.badge_outlined,
-                          controller: _nameController,
-                          validator: _validateName,
-                          textCapitalization: TextCapitalization.words,
-                          hint: 'e.g. Alex Johnson',
-                        ),
-                        const SizedBox(height: 16),
-                        _field(
-                          label: 'Email address',
-                          icon: Icons.email_outlined,
-                          controller: _emailController,
-                          validator: _validateEmail,
-                          keyboardType: TextInputType.emailAddress,
-                          hint: 'e.g. alex@university.edu',
-                        ),
-                        const SizedBox(height: 16),
-                        _field(
-                          label: 'Phone number',
-                          icon: Icons.phone_outlined,
-                          controller: _phoneController,
-                          validator: _validatePhone,
-                          keyboardType: TextInputType.phone,
-                          hint: '10-digit mobile number',
-                        ),
-                        const SizedBox(height: 16),
-                        _field(
-                          label: 'Username',
-                          icon: Icons.alternate_email,
-                          controller: _usernameController,
-                          validator: _validateUsername,
-                          hint: 'e.g. alex_j24',
-                        ),
-                        const SizedBox(height: 16),
-                        _field(
-                          label: 'Password',
-                          icon: Icons.lock_outline,
-                          controller: _passwordController,
-                          validator: _validatePassword,
-                          obscureText: !_showPassword,
-                          suffixIcon: IconButton(
-                            tooltip: _showPassword
-                                ? 'Hide password'
-                                : 'Show password',
-                            onPressed: () =>
-                                setState(() => _showPassword = !_showPassword),
-                            icon: Icon(
-                              _showPassword
-                                  ? Icons.visibility_off_outlined
-                                  : Icons.visibility_outlined,
-                              color: zappMuted,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        _field(
-                          label: 'Confirm password',
-                          icon: Icons.lock_reset_outlined,
-                          controller: _confirmPasswordController,
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Confirm your password';
-                            }
-                            if (value != _passwordController.text) {
-                              return 'Passwords do not match';
-                            }
-                            return null;
-                          },
-                          obscureText: !_showConfirmPassword,
-                          suffixIcon: IconButton(
-                            tooltip: _showConfirmPassword
-                                ? 'Hide password'
-                                : 'Show password',
-                            onPressed: () => setState(
-                              () =>
-                                  _showConfirmPassword = !_showConfirmPassword,
-                            ),
-                            icon: Icon(
-                              _showConfirmPassword
-                                  ? Icons.visibility_off_outlined
-                                  : Icons.visibility_outlined,
-                              color: zappMuted,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: zappOrangeLight.withValues(alpha: 0.5),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: zappBorder),
-                          ),
-                          child: const Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Icon(
-                                Icons.shield_outlined,
-                                size: 16,
-                                color: zappOrange,
-                              ),
-                              SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  'Password must have at least 8 characters, including uppercase, lowercase, a number, and a special character.',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    height: 1.4,
-                                    color: zappMuted,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        if (_errorMessage != null) ...[
-                          const SizedBox(height: 16),
-                          Container(
-                            width: double.infinity,
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFFFEBE7),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: const Color(0xFFFFC5BC),
-                              ),
-                            ),
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Icon(
-                                  Icons.error_outline_rounded,
-                                  color: Color(0xFFB3261E),
-                                  size: 18,
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(
-                                    _errorMessage!,
-                                    style: const TextStyle(
-                                      color: Color(0xFFB3261E),
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                        const SizedBox(height: 24),
-                        SizedBox(
-                          height: 52,
-                          child: FilledButton(
-                            onPressed: _isLoading ? null : _submit,
-                            style: FilledButton.styleFrom(
-                              backgroundColor: zappOrange,
-                              foregroundColor: Colors.white,
-                              disabledBackgroundColor: zappOrange.withValues(
-                                alpha: 0.5,
-                              ),
-                              elevation: 0,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(14),
-                              ),
-                            ),
-                            child: _isLoading
-                                ? const SizedBox(
-                                    height: 22,
-                                    width: 22,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2.2,
-                                      color: Colors.white,
-                                    ),
-                                  )
-                                : const Text(
-                                    'Create Account',
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                          ),
-                        ),
-                        const SizedBox(height: 18),
-                        Wrap(
-                          alignment: WrapAlignment.center,
-                          crossAxisAlignment: WrapCrossAlignment.center,
-                          children: [
-                            const Text(
-                              'Already have an account? ',
-                              style: TextStyle(color: zappMuted),
-                            ),
-                            TextButton(
-                              onPressed: () => Navigator.of(context).pop(),
-                              child: const Text(
-                                'Sign in',
-                                style: TextStyle(
-                                  color: zappOrange,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
+      body: Form(
+        key: _formKey,
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            TextFormField(
+              controller: _nameController,
+              decoration: const InputDecoration(labelText: 'Full name'),
+              textInputAction: TextInputAction.next,
+              validator: _validateName,
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _emailController,
+              decoration: const InputDecoration(labelText: 'Email address'),
+              keyboardType: TextInputType.emailAddress,
+              textInputAction: TextInputAction.next,
+              validator: _validateEmail,
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _phoneController,
+              decoration: const InputDecoration(labelText: 'Phone number'),
+              keyboardType: TextInputType.phone,
+              textInputAction: TextInputAction.next,
+              validator: _validatePhone,
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _usernameController,
+              decoration: const InputDecoration(labelText: 'Username'),
+              textInputAction: TextInputAction.next,
+              validator: _validateUsername,
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _passwordController,
+              decoration: InputDecoration(
+                labelText: 'Password',
+                suffixIcon: IconButton(
+                  icon: Icon(
+                    _showPassword ? Icons.visibility_off : Icons.visibility,
                   ),
+                  onPressed: () {
+                    setState(() => _showPassword = !_showPassword);
+                  },
                 ),
               ),
+              obscureText: !_showPassword,
+              textInputAction: TextInputAction.next,
+              validator: _validatePassword,
             ),
-          ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _confirmPasswordController,
+              decoration: InputDecoration(
+                labelText: 'Confirm password',
+                suffixIcon: IconButton(
+                  icon: Icon(
+                    _showConfirmPassword
+                        ? Icons.visibility_off
+                        : Icons.visibility,
+                  ),
+                  onPressed: () {
+                    setState(
+                      () => _showConfirmPassword = !_showConfirmPassword,
+                    );
+                  },
+                ),
+              ),
+              obscureText: !_showConfirmPassword,
+              textInputAction: TextInputAction.done,
+              onFieldSubmitted: (_) => _handleSignup(),
+              validator: _validateConfirmPassword,
+            ),
+            if (_errorMessage != null) ...[
+              const SizedBox(height: 16),
+              Text(
+                _errorMessage!,
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
+            ],
+            const SizedBox(height: 24),
+            FilledButton(
+              onPressed: _isLoading ? null : _handleSignup,
+              child: _isLoading
+                  ? const SizedBox.square(
+                      dimension: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text('Create Account'),
+            ),
+          ],
         ),
       ),
     );

@@ -110,13 +110,13 @@ void main() {
       );
     }
 
-    testWidgets('Login screen toggles between Student and Administrator', (
+    testWidgets('Login screen toggles between User and Admin', (
       WidgetTester tester,
     ) async {
       await tester.pumpWidget(buildLoginScreen());
 
-      expect(find.text('Welcome back.'), findsOneWidget);
-      expect(find.text('Student'), findsOneWidget);
+      expect(find.text('Sign in'), findsWidgets);
+      expect(find.text('User'), findsOneWidget);
       expect(find.text('Admin'), findsOneWidget);
       expect(find.widgetWithText(FilledButton, 'Sign in'), findsOneWidget);
 
@@ -124,11 +124,7 @@ void main() {
       await tester.tap(find.text('Admin'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Admin Portal'), findsOneWidget);
-      expect(
-        find.widgetWithText(FilledButton, 'Sign in as Administrator'),
-        findsOneWidget,
-      );
+      expect(find.widgetWithText(FilledButton, 'Sign in'), findsOneWidget);
     });
   });
 }
