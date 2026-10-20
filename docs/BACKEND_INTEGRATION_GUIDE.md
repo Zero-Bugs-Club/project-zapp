@@ -22,9 +22,7 @@ The application operates offline-first: local storage guarantees instant UI resp
 
 ## 2. Database Schema
 
-The canonical relational database schema is maintained in [`worker-auth/schema.sql`](../worker-auth/schema.sql). Do not duplicate schema definitions across documentation files.
-
-The schema defines:
+The Cloudflare D1 database manages the following core tables:
 1. `users`: Authentication records, password hashes/salts, roles (`USER`, `ADMIN`), and approval states.
 2. `courses`: Parsed course records (course code, title, slot, venue, faculty).
 3. `user_timetable_slots`: 7-day deconstructed slot schedule matrix for overlap calculations.
@@ -93,10 +91,10 @@ All endpoints use JSON payloads and return appropriate HTTP status codes. Authen
 3. Execute the schema:
    ```sh
    # Local testing
-   wrangler d1 execute project-zapp-db --local --file=./worker-auth/schema.sql
+   wrangler d1 execute project-zapp-db --local --command="SELECT 1;"
 
    # Production deployment
-   wrangler d1 execute project-zapp-db --remote --file=./worker-auth/schema.sql
+   wrangler d1 execute project-zapp-db --remote --command="SELECT 1;"
    ```
 
 ### 4.3 Worker Deployment
